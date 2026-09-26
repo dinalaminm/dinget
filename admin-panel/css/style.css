@@ -1,0 +1,550 @@
+/* ════════════════════════════════════════════════════════════════
+   SellPoint Admin — design tokens
+   একটা payment-verification প্রোডাক্টের ব্যাকঅফিস প্যানেল, তাই প্যালেটটা
+   Android অ্যাপের নিজস্ব সবুজ ব্র্যান্ডিং (status bar, "Verified" pill)
+   থেকেই নেওয়া — যাতে দুটো প্রোডাক্ট একই পরিবারের মনে হয়, জেনেরিক SaaS
+   dashboard কিট থেকে ধার না করে।
+   ════════════════════════════════════════════════════════════════ */
+
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  --ink: #16221d;
+  --ink-soft: #4b5b52;
+  --paper: #f6f8f5;
+  --surface: #ffffff;
+  --line: #e0e6dd;
+  --line-soft: #edf1ea;
+
+  --brand: #0e7c5a;
+  --brand-dark: #0b5f45;
+  --brand-tint: #e5f3ec;
+
+  --amber: #a9711f;
+  --amber-tint: #faf1e0;
+  --red: #b3372c;
+  --red-tint: #fbeae7;
+  --blue: #2457b3;
+  --blue-tint: #e8eefb;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-card: 0 1px 2px rgba(22, 34, 29, 0.06);
+  --shadow-pop: 0 12px 32px rgba(22, 34, 29, 0.16);
+
+  --font-display: "Manrope", "Segoe UI", sans-serif;
+  --font-body: "Inter", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font-family: inherit; }
+
+a { color: var(--brand-dark); }
+
+::selection { background: var(--brand-tint); color: var(--brand-dark); }
+
+/* focus visibility — কখনো বন্ধ করা হয় না */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ── লগইন স্ক্রিন ─────────────────────────────────────────────── */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(560px 420px at 15% 10%, rgba(14, 124, 90, 0.10), transparent 60%),
+    radial-gradient(640px 480px at 90% 90%, rgba(14, 124, 90, 0.07), transparent 60%),
+    var(--paper);
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 36px 32px 32px;
+  box-shadow: var(--shadow-card);
+}
+
+.login-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.login-mark svg { width: 26px; height: 26px; }
+
+.login-card h1 {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.login-card p.sub {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  margin: 0 0 24px;
+}
+
+.field { margin-bottom: 16px; }
+
+.field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--brand);
+}
+.field textarea { resize: vertical; min-height: 64px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px; }
+
+.field-hint {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 5px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn--primary { background: var(--brand); color: #fff; }
+.btn--primary:hover:not(:disabled) { background: var(--brand-dark); }
+
+.btn--ghost { background: transparent; border-color: var(--line); color: var(--ink); }
+.btn--ghost:hover:not(:disabled) { border-color: var(--ink-soft); }
+
+.btn--danger { background: transparent; border-color: var(--red); color: var(--red); }
+.btn--danger:hover:not(:disabled) { background: var(--red-tint); }
+
+.btn--block { width: 100%; }
+.btn--sm { padding: 6px 12px; font-size: 12.5px; }
+
+.login-error {
+  font-size: 13px;
+  color: var(--red);
+  background: var(--red-tint);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  margin-bottom: 16px;
+  display: none;
+}
+.login-error--visible { display: block; }
+
+/* ── অ্যাপ শেল ─────────────────────────────────────────────────── */
+.app-shell {
+  display: none;
+  min-height: 100vh;
+  grid-template-columns: 220px 1fr;
+}
+.app-shell--visible { display: grid; }
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 22px;
+}
+.sidebar-brand .mark {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  background: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-brand .mark svg { width: 16px; height: 16px; }
+.sidebar-brand .name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+}
+.sidebar-brand .name small {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  margin-bottom: 2px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+.nav-item:hover { background: var(--line-soft); color: var(--ink); }
+.nav-item.active { background: var(--brand-tint); color: var(--brand-dark); }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sidebar-footer .who {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding: 0 10px 10px;
+}
+
+.main {
+  padding: 28px 32px 60px;
+  min-width: 0;
+}
+
+.page { display: none; }
+.page--active { display: block; }
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.page-head h2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+.page-head p {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  margin: 0;
+  max-width: 52ch;
+}
+.page-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── স্ট্যাট কার্ড ─────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 26px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+}
+.stat-card .label { font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
+.stat-card .value { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+.stat-card .value.brand { color: var(--brand-dark); }
+.stat-card .value.warn { color: var(--amber); }
+.stat-card .sub { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+
+/* ── কার্ড / প্যানেল ───────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.panel-head h3 { font-size: 14.5px; font-weight: 700; margin: 0; }
+.panel-body { padding: 18px; }
+
+/* ── টেবিল ─────────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.data td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+table.data tbody tr:hover { background: var(--line-soft); cursor: pointer; }
+table.data tbody tr:last-child td { border-bottom: none; }
+table.data .mono { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+.table-empty { padding: 40px 20px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+
+/* ── ব্যাজ / পিল ───────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge--ok { background: var(--brand-tint); color: var(--brand-dark); }
+.badge--warn { background: var(--amber-tint); color: var(--amber); }
+.badge--error { background: var(--red-tint); color: var(--red); }
+.badge--neutral { background: var(--line-soft); color: var(--ink-soft); }
+
+/* ── ফর্ম গ্রিড (license editor) ──────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.form-grid .span-2 { grid-column: 1 / -1; }
+@media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.field-row:last-child { border-bottom: none; }
+.field-row .fr-label { font-size: 13px; font-weight: 600; }
+.field-row .fr-value { font-size: 12.5px; color: var(--ink-soft); font-family: "SFMono-Regular", Consolas, monospace; }
+
+/* toggle switch */
+.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .track {
+  position: absolute; inset: 0; background: var(--line); border-radius: 999px; cursor: pointer; transition: background 0.15s;
+}
+.switch .track::after {
+  content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.switch input:checked + .track { background: var(--brand); }
+.switch input:checked + .track::after { transform: translateX(18px); }
+
+/* copy-with-value row */
+.copy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+.copy-row code {
+  flex: 1;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+.copy-row button { flex-shrink: 0; }
+
+/* ── কাস্টম সেন্ডার রুল এডিটর ──────────────────────────────────── */
+.rule-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.rule-card .rule-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.rule-card .rule-head span { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rule-grid .span-2 { grid-column: 1 / -1; }
+
+.tester-box {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.tester-result {
+  display: flex;
+  gap: 16px;
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+.tester-result .ok { color: var(--brand-dark); font-weight: 700; }
+.tester-result .fail { color: var(--red); font-weight: 700; }
+
+/* ── মোডাল ─────────────────────────────────────────────────────── */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(22, 34, 29, 0.45);
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  z-index: 100;
+}
+.modal-backdrop--visible { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 640px;
+  box-shadow: var(--shadow-pop);
+  margin-bottom: 40px;
+}
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--line);
+}
+.modal-head h3 { margin: 0 0 3px; font-size: 17px; font-weight: 800; font-family: var(--font-display); }
+.modal-head p { margin: 0; font-size: 12.5px; color: var(--ink-soft); font-family: "SFMono-Regular", Consolas, monospace; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--ink-soft); padding: 4px; }
+.modal-body { padding: 22px; max-height: 60vh; overflow-y: auto; }
+.modal-foot {
+  padding: 16px 22px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin: 20px 0 10px;
+}
+.section-title:first-child { margin-top: 0; }
+
+/* ── টোস্ট ─────────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+}
+.toast {
+  background: var(--ink);
+  color: #fff;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s, transform 0.2s;
+  max-width: 320px;
+}
+.toast--visible { opacity: 1; transform: translateY(0); }
+.toast--error { background: var(--red); }
+.toast--success { background: var(--brand-dark); }
+
+/* ── প্যাজিনেশন / টুলবার ──────────────────────────────────────── */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.toolbar input[type="search"], .toolbar select {
+  padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface);
+}
+.toolbar input[type="search"] { min-width: 200px; }
+.spacer { flex: 1; }
+
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--ink-soft);
+}
+.empty-state svg { width: 40px; height: 40px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state p { font-size: 13.5px; margin: 0; }
+
+.skeleton { color: var(--ink-soft); font-size: 13px; padding: 20px; text-align: center; }
+
+@media (max-width: 860px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; flex-direction: row; overflow-x: auto; padding: 12px; }
+  .sidebar-brand { display: none; }
+  .sidebar-footer { display: none; }
+  .nav-item { white-space: nowrap; }
+  .main { padding: 20px 16px 50px; }
+}
