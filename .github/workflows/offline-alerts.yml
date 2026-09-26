@@ -1,0 +1,28 @@
+name: Check offline devices
+
+# প্রতি ১৫ মিনিটে চলে (GitHub-এর মিনিটের সীমা ৫, কিন্তু ব্যস্ত সময়ে দেরি হতে পারে বলে
+# ১৫ মিনিট বেছে নেওয়া হয়েছে — সাথে সাথে না হলেও কয়েক মিনিটের মধ্যে ঠিকই চলবে)।
+# workflow_dispatch দিয়ে GitHub-এর Actions ট্যাব থেকে ম্যানুয়ালিও চালানো যায় (টেস্টের জন্য)।
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install firebase-admin
+
+      - name: Run offline check
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: node scripts/check-offline-devices.js
