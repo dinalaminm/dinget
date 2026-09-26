@@ -1,0 +1,15 @@
+{
+  "name": "sellpoint-functions",
+  "private": true,
+  "description": "SellPoint-এর Cloud Functions — admin login/password ও অফলাইন অ্যালার্ট।",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test *.test.js",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0"
+  }
+}
