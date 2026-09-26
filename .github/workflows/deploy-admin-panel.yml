@@ -1,0 +1,38 @@
+name: Deploy admin panel to GitHub Pages
+
+# শুধু admin-panel/ ফোল্ডারটাই Pages-এর root হিসেবে deploy হয় — তাই সাইটের ঠিকানা হয়
+# https://<username>.github.io/<repo>/ (সরাসরি, কোনো /admin-panel/ যোগ না করেই)।
+# আগে যেটা হচ্ছিল: repo-এর পুরো রুট (firebase.json, functions/ ইত্যাদিসহ) Pages হিসেবে
+# serve হচ্ছিল, যেখানে কোনো index.html নেই — তাই 404 আসছিল।
+on:
+  push:
+    branches: [main]
+    paths: ["admin-panel/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "admin-panel"
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
