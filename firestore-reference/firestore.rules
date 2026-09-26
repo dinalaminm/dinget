@@ -1,0 +1,132 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════════════════════
+// SellPoint — Firestore Security Rules
+//
+// পড়ার আগে জেনে রাখুন — একটা বড় সীমাবদ্ধতা:
+// merchant-এর ফোন (SellPoint অ্যাপ) কোনো Firebase Auth ব্যবহার করে না (কোনো sign-in নেই)।
+// শুধু admin panel Auth ব্যবহার করে (Firebase Authentication Email/Password দিয়ে সরাসরি
+// sign-in করে, request.auth.token.email নিচের isAdmin() allowlist-এ আছে কিনা)। তাই Firestore-এর কাছে
+// "এই request-টা আসলে কোন merchant-এর ফোন থেকে এসেছে" — সেটা জানার কোনো নির্ভরযোগ্য উপায়
+// নেই। ফলে "merchant A কখনো merchant B-এর transaction পড়তে পারবে না" — এই স্তরের সুরক্ষা
+// merchant-দের জন্য এখনো সম্পূর্ণভাবে দেওয়া সম্ভব না; সেটার জন্যও merchant-প্রতি Auth লাগবে।
+// admin panel-এর জন্য এই সমস্যা নেই — সেটা properly authenticated।
+//
+// এই rules ফাইল যা দেয়:
+//   ✅ Admin panel (isAdmin()) সব কিছু করতে পারে — license তৈরি/এডিট/মোছা, transaction
+//      দেখা/মোছা, app_config বদলানো — কারণ সেটা প্রকৃতপক্ষেই authenticated
+//   ✅ merchant-এর ফোন থেকে সব লেখা structure/type অনুযায়ী validate হয় — এলোমেলো/malformed
+//      ডেটা আটকায়
+//   ✅ transactions merchant-এর জন্য ইমিউটেবল (তৈরি করা যায়, বদলানো/মোছা যায় না) — শুধু
+//      admin panel থেকেই বদলানো/মোছা যায় (ভুল এন্ট্রি ঠিক করতে)
+//   ✅ licenses ডকুমেন্টে merchant-এর ফোন শুধু নির্দিষ্ট কয়েকটা field-ই বদলাতে পারে
+//      (heartbeat, fcmToken, device-binding) — active/webhookUrl/webhookSecret/
+//      telegramChatId ইত্যাদি admin-only field merchant-এর ফোন থেকে বদলানো যায় না
+//   ✅ licenses কালেকশনের bulk list merchant-এর ফোন থেকে বন্ধ — admin panel ছাড়া কেউ পুরো
+//      merchant তালিকা (webhook secret সহ) টেনে নিতে পারবে না
+//   ✅ admin/ কালেকশন merchant-এর ফোন থেকে সম্পূর্ণ বন্ধ — password check শুধু সার্ভার-সাইড
+//
+// যা এখনো খোলা থাকছে (merchant-প্রতি Auth ছাড়া বন্ধ করা সম্ভব না) — সৎভাবে জানিয়ে রাখা হলো:
+//   ⚠️ transactions get/list — merchant-এর ফোনের whereEqualTo("clientId", key) ফিল্টারটা
+//      শুধু app-এর সৌজন্যে; Firestore rules সেই ফিল্টার জোরপূর্বক প্রয়োগ করতে পারে না Auth
+//      ছাড়া, তাই কৌশলে (Firebase কনফিগ ডিকম্পাইল করে) অন্য merchant-এর transaction পড়া সম্ভব
+//   ⚠️ licenses/{key} single get — লগইন স্ক্রিন কাজ করাতে খোলা রাখতেই হচ্ছে, তাই key অনুমান
+//      করতে পারলে সেই merchant-এর webhookUrl/webhookSecret/boundDeviceId ইত্যাদি দেখা সম্ভব
+// দুটোরই আসল সমাধান একটাই: merchant-এর ফোনেও Firebase Auth migration। যতদিন সেটা না
+// হচ্ছে, license key-কে পাসওয়ার্ডের মতোই গোপন রাখা এবং যথেষ্ট high-entropy (এখনকার ফরম্যাট
+// DINGET-XXXX-XXXX-XXXX ইতিমধ্যেই মোটামুটি ভালো) — এটাই এখনকার বাস্তব সুরক্ষার স্তর।
+// ════════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // admin panel Firebase Authentication (Email/Password) দিয়ে সাইন-ইন করে — এটা Blaze
+    // প্ল্যান ছাড়াই কাজ করে (Cloud Functions-ভিত্তিক custom-token পদ্ধতির বদলে, যেটা এখন
+    // ব্যবহার করা হচ্ছে না)। এখানে অনুমোদিত অ্যাডমিন ইমেইলের একটা তালিকা — শুধু এই
+    // ইমেইলগুলো দিয়ে সাইন-ইন করলেই isAdmin() true হবে।
+    //
+    // ⚠️ নিজের অ্যাডমিন ইমেইল(গুলো) এখানে বসান, তারপর firebase deploy --only firestore:rules
+    // চালান। Firebase Console → Authentication → Users-এ গিয়ে এই একই ইমেইলে একটা
+    // ইউজার তৈরি করতে হবে (দেখুন SETUP.md)।
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        'admin@example.com'
+      ];
+    }
+
+    // ── transactions/{trxId} ──────────────────────────────────────────
+    match /transactions/{trxId} {
+
+      allow get, list: if true; // ⚠️ উপরের নোট দেখুন — merchant-প্রতি Auth ছাড়া আলাদা করা সম্ভব না
+
+      // merchant-এর ফোন থেকে শুধু তৈরি করা যায়, কখনো বদলানো/মোছা যায় না — payment ledger
+      // হিসেবে এটাই সঠিক আচরণ। admin panel থেকে ভুল এন্ট্রি ঠিক করা/মোছা যায় (isAdmin())।
+      allow update, delete: if isAdmin();
+
+      allow create: if isAdmin() || (
+        // ডকুমেন্ট আইডি অবশ্যই নিজের trxID ফিল্ডের সাথে মিলতে হবে (এলোমেলো আইডিতে সেভ করা যাবে না)
+        request.resource.data.trxID == trxId
+        && request.resource.data.trxID is string && request.resource.data.trxID.size() > 0
+        && request.resource.data.method is string
+        && request.resource.data.amount is number && request.resource.data.amount > 0
+        && request.resource.data.clientId is string && request.resource.data.clientId.size() > 0
+        // যে license-এর নামে transaction, সেটা আসলেই আছে কিনা — ভুয়া clientId দিয়ে জাঙ্ক ডেটা রোধ
+        && exists(/databases/$(database)/documents/licenses/$(request.resource.data.clientId))
+      );
+    }
+
+    // ── licenses/{key} ─────────────────────────────────────────────────
+    match /licenses/{key} {
+
+      allow get: if true;          // লগইন স্ক্রিনে license verify করতে দরকার
+      allow list: if isAdmin();    // পুরো merchant তালিকা শুধু admin panel থেকে
+
+      allow create, delete: if isAdmin(); // license শুধু admin panel থেকেই তৈরি/মোছা হয়
+
+      allow update: if isAdmin() || (
+        // merchant-এর ফোন (অ্যাপ) নিজে থেকে শুধু নিচের field গুলোই বদলাতে পারবে — বাকি সব
+        // (active, clientName, webhookUrl, webhookSecret, telegramChatId, alertEmail,
+        // offlineAlertMinutes, customSenderRules, lastOfflineAlertMillis...) admin-only।
+        // এটাই আসল সুরক্ষা: এমনকি কেউ যদি অন্য কারো license key জেনেও ফেলে, সেটা দিয়ে
+        // active flag চালু করা বা webhookUrl বদলে দেওয়া তার পক্ষে সম্ভব না।
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'isOnline', 'lastSeen',
+              'activatedAt', 'boundDeviceId', 'boundDeviceModel', 'boundAt',
+              'fcmToken', 'lastDeactivationReason'
+            ])
+        // boundDeviceId একবার সেট হয়ে গেলে আর বদলানো যাবে না (device switch শুধু admin করবে) —
+        // ফাঁকা → একটা মান, এটাই একমাত্র বৈধ পরিবর্তন
+        && (
+          !('boundDeviceId' in request.resource.data.diff(resource.data).affectedKeys())
+          || !('boundDeviceId' in resource.data)
+          || resource.data.boundDeviceId == null
+          || resource.data.boundDeviceId == ''
+        )
+      );
+    }
+
+    // ── admin/{doc} ────────────────────────────────────────────────────
+    // পাসওয়ার্ড হ্যাশ কখনোই client rules দিয়ে পড়া/লেখা যায় না, এমনকি isAdmin() হলেও না —
+    // পাসওয়ার্ড হ্যাশিং/verification/রেট-লিমিট শুধু Cloud Function-এর ভেতরেই হয়
+    // (Admin SDK ব্যবহার করে, যেটা rules-কে সম্পূর্ণ পাশ কাটিয়ে যায়) — দেখুন
+    // server-reference/adminAuthFunctions.js (Blaze প্ল্যানে upgrade করলে ব্যবহারযোগ্য;
+    // Email/Password auth ব্যবহার করলে এই কালেকশনটা এমনিতেও অব্যবহৃত)
+    match /admin/{doc} {
+      allow read, write: if false;
+    }
+
+    // ── app_config/{doc} ───────────────────────────────────────────────
+    // অ্যাপ ভার্সন-চেকের জন্য পাবলিক রিড-ওনলি তথ্য, admin panel থেকে বদলানো যায়
+    match /app_config/{doc} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // বাকি সবকিছু ডিফল্টে বন্ধ
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
