@@ -20,6 +20,16 @@ export function generateLicenseKey() {
   return "DINGET-" + groups.join("-");
 }
 
+/** firebase-config.js এখনো placeholder (YOUR_...) অবস্থায় আছে কিনা — সেটআপ কিটে ইউজার নিজের
+ *  মান বসানোর আগে লগইন করতে গেলে দুর্বোধ্য Firebase error না দেখিয়ে পরিষ্কার নির্দেশনা দেখানোর জন্য */
+export function isPlaceholderConfig(cfg) {
+  if (!cfg) return true;
+  return ["apiKey", "projectId", "appId"].some((k) => {
+    const v = cfg[k];
+    return typeof v !== "string" || v.trim() === "" || /^YOUR_/i.test(v.trim());
+  });
+}
+
 /** webhookSecret-এর জন্য — এটা merchant বা কেউ টাইপ করবে না, তাই সম্পূর্ণ এলোমেলো হলেই যথেষ্ট */
 export function generateWebhookSecret() {
   const bytes = new Uint8Array(32);

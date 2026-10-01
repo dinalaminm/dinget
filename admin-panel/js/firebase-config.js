@@ -8,12 +8,12 @@
 // "Web" অ্যাপ যোগ করুন (Project Settings → Your apps → Add app → Web) এবং সেখান থেকে
 // পাওয়া আসল appId দিয়ে নিচেরটা বদলে দিন।
 export const firebaseConfig = {
-  apiKey: "AIzaSyCpzyw9n4KsUr48toS010uJVG2xQTF3PEQ",
-  authDomain: "dinget-2503a.firebaseapp.com",
-  projectId: "dinget-2503a",
-  storageBucket: "dinget-2503a.firebasestorage.app",
-  messagingSenderId: "281348698415",
-  appId: "1:281348698415:web:780cbb33aa90e48678f1da"
+  apiKey: "AIzaSyCnroHSULDw8caJL9IV4C2rA1EY-k1tX2I",
+  authDomain: "khelo-jone-bd-f1048.firebaseapp.com",
+  projectId: "khelo-jone-bd-f1048",
+  storageBucket: "khelo-jone-bd-f1048.firebasestorage.app",
+  messagingSenderId: "124887610581",
+  appId: "1:124887610581:android:be77166542bd3154745e5c", // ← Web অ্যাপ যোগ করে বদলে নিন
 };
 
 // Cloud Functions (adminLogin ইত্যাদি) এখানে ব্যবহার হচ্ছে না — লগইন সরাসরি Firebase

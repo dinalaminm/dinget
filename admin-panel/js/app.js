@@ -14,7 +14,9 @@ import {
 import {
   generateLicenseKey, generateWebhookSecret,
   formatWhen, formatTaka, escapeHtml, downloadCsv, toast,
+  isPlaceholderConfig,
 } from "./utils.js";
+import { firebaseConfig } from "./firebase-config.js";
 
 // ════════════════════════════════════════════════════════════════
 // AUTH
@@ -27,6 +29,14 @@ const loginError = document.getElementById("loginError");
 const loginBtn = document.getElementById("loginBtn");
 
 let unsubscribers = []; // পেজ পাল্টালে/লগআউট করলে সব লাইভ listener বন্ধ করার জন্য
+
+// সেটআপ কিটে firebase-config.js শুরুতে placeholder থাকে — সেটা না বদলালে লগইন বন্ধ রেখে
+// কী করতে হবে সেটা পরিষ্কার বলা হয়
+if (isPlaceholderConfig(firebaseConfig)) {
+  loginError.textContent = "Setup isn't finished: open js/firebase-config.js and paste your Firebase Web app settings (SETUP.md, step 4).";
+  loginError.classList.add("login-error--visible");
+  loginBtn.disabled = true;
+}
 
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -100,7 +110,6 @@ function startApp() {
   initDashboard();
   initLicenses();
   initTransactions();
-  initAppConfig();
   initSettings();
 }
 
@@ -160,7 +169,7 @@ async function refreshDashboard() {
 
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="label">Total licenses</div>
+        <div class="label">Total devices</div>
         <div class="value">${total}</div>
       </div>
       <div class="stat-card">
@@ -299,10 +308,10 @@ function openLicenseModal(license) {
     : [];
 
   const isNew = !license;
-  licenseModalTitle.textContent = isNew ? "New license" : (license.clientName || "Edit license");
-  licenseModalKey.textContent = isNew ? "A new key will be generated on save" : license.id;
+  licenseModalTitle.textContent = isNew ? "New device" : (license.clientName || "Edit device");
+  licenseModalKey.textContent = isNew ? "A new Device ID will be generated on save" : license.id;
   deleteLicenseBtn.style.display = isNew ? "none" : "inline-flex";
-  licenseModalSave.textContent = isNew ? "Create license" : "Save changes";
+  licenseModalSave.textContent = isNew ? "Create device" : "Save changes";
 
   const l = license || {};
 
@@ -323,7 +332,7 @@ function openLicenseModal(license) {
     </div>
 
     <div class="section-title">Device binding</div>
-    ${isNew ? `<div class="field-hint">The first phone to activate this key will be bound automatically.</div>` : `
+    ${isNew ? `<div class="field-hint">The first phone to restore this Device ID will be bound automatically.</div>` : `
       <div class="field-row"><span class="fr-label">Bound device</span><span class="fr-value">${escapeHtml(l.boundDeviceModel || "Not bound")}</span></div>
       <div class="field-row"><span class="fr-label">Bound since</span><span class="fr-value">${formatWhen(l.boundAt)}</span></div>
       ${l.boundDeviceId ? `<button type="button" class="btn btn--ghost btn--sm" id="resetBindingBtn" style="margin-top:8px;">Reset device binding</button>` : ""}
@@ -338,7 +347,7 @@ function openLicenseModal(license) {
       <div class="field span-2">
         <label for="fWebhookSecret">Signing secret</label>
         <div class="copy-row">
-          <code id="fWebhookSecret">${escapeHtml(l.webhookSecret || "(not set — falls back to license key)")}</code>
+          <code id="fWebhookSecret">${escapeHtml(l.webhookSecret || "(not set — falls back to the Device ID)")}</code>
           <button type="button" class="btn btn--ghost btn--sm" id="regenSecretBtn">Generate new</button>
         </div>
         <div class="field-hint">Used to sign the X-DinGet-Signature header. Regenerating invalidates the old one immediately.</div>
@@ -516,7 +525,7 @@ licenseModalSave.addEventListener("click", async () => {
   try {
     if (editingLicenseId) {
       await updateDoc(doc(db, "licenses", editingLicenseId), payload);
-      toast("License updated", "success");
+      toast("Device updated", "success");
     } else {
       const newKey = generateLicenseKey();
       await setDoc(doc(db, "licenses", newKey), {
@@ -525,23 +534,23 @@ licenseModalSave.addEventListener("click", async () => {
         createdAt: serverTimestamp(),
         isOnline: false,
       });
-      toast(`License created: ${newKey}`, "success");
+      toast(`Device created: ${newKey}. On the phone, choose "I already have a Device ID" and enter it.`, "success");
     }
     closeLicenseModal();
   } catch (err) {
     toast("Couldn't save: " + err.message, "error");
   } finally {
     licenseModalSave.disabled = false;
-    licenseModalSave.textContent = editingLicenseId ? "Save changes" : "Create license";
+    licenseModalSave.textContent = editingLicenseId ? "Save changes" : "Create device";
   }
 });
 
 deleteLicenseBtn.addEventListener("click", async () => {
   if (!editingLicenseId) return;
-  if (!confirm(`Delete license ${editingLicenseId}? This cannot be undone. The merchant's transaction history is kept.`)) return;
+  if (!confirm(`Delete device ${editingLicenseId}? This cannot be undone. Its transaction history is kept.`)) return;
   try {
     await deleteDoc(doc(db, "licenses", editingLicenseId));
-    toast("License deleted", "success");
+    toast("Device deleted", "success");
     closeLicenseModal();
   } catch (err) {
     toast("Couldn't delete: " + err.message, "error");
@@ -672,51 +681,6 @@ function exportTransactionsCsv() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// APP CONFIG (app_config/version)
-// ════════════════════════════════════════════════════════════════
-
-function initAppConfig() {
-  loadAppConfig();
-  document.getElementById("appConfigForm").addEventListener("submit", saveAppConfig);
-}
-
-async function loadAppConfig() {
-  try {
-    const snap = await getDoc(doc(db, "app_config", "version"));
-    if (snap.exists()) {
-      const d = snap.data();
-      document.getElementById("cfgVersionCode").value = d.latestVersionCode || "";
-      document.getElementById("cfgUpdateUrl").value = d.updateUrl || "";
-      document.getElementById("cfgReleaseNotes").value = d.releaseNotes || "";
-      document.getElementById("cfgForceUpdate").value = d.forceUpdate ? "true" : "false";
-    }
-  } catch (err) {
-    toast("Couldn't load app config: " + err.message, "error");
-  }
-}
-
-async function saveAppConfig(e) {
-  e.preventDefault();
-  const btn = document.getElementById("saveAppConfigBtn");
-  btn.disabled = true;
-  btn.textContent = "Saving…";
-
-  try {
-    await setDoc(doc(db, "app_config", "version"), {
-      latestVersionCode: Number(document.getElementById("cfgVersionCode").value),
-      updateUrl: document.getElementById("cfgUpdateUrl").value.trim(),
-      releaseNotes: document.getElementById("cfgReleaseNotes").value.trim(),
-      forceUpdate: document.getElementById("cfgForceUpdate").value === "true",
-    }, { merge: true });
-    toast("App config saved", "success");
-  } catch (err) {
-    toast("Couldn't save: " + err.message, "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Save changes";
-  }
-}
-
 // ════════════════════════════════════════════════════════════════
 // SETTINGS — পাসওয়ার্ড বদলানো
 // ════════════════════════════════════════════════════════════════
