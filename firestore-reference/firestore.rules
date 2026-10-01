@@ -14,7 +14,7 @@ rules_version = '2';
 //
 // এই rules ফাইল যা দেয়:
 //   ✅ Admin panel (isAdmin()) সব কিছু করতে পারে — license তৈরি/এডিট/মোছা, transaction
-//      দেখা/মোছা, app_config বদলানো — কারণ সেটা প্রকৃতপক্ষেই authenticated
+//      দেখা/মোছা — কারণ সেটা প্রকৃতপক্ষেই authenticated
 //   ✅ merchant-এর ফোন থেকে সব লেখা structure/type অনুযায়ী validate হয় — এলোমেলো/malformed
 //      ডেটা আটকায়
 //   ✅ transactions merchant-এর জন্য ইমিউটেবল (তৈরি করা যায়, বদলানো/মোছা যায় না) — শুধু
@@ -81,7 +81,26 @@ service cloud.firestore {
       allow get: if true;          // লগইন স্ক্রিনে license verify করতে দরকার
       allow list: if isAdmin();    // পুরো merchant তালিকা শুধু admin panel থেকে
 
-      allow create, delete: if isAdmin(); // license শুধু admin panel থেকেই তৈরি/মোছা হয়
+      allow delete: if isAdmin(); // ডিভাইস মোছা শুধু admin panel থেকে
+
+      // ইউজার নিজের ডাটাবেজ কানেক্ট করলে ফোন নিজেই নিজের ডিভাইস রেকর্ড তৈরি করে (আলাদা
+      // লাইসেন্স কী লাগে না)। তাই তৈরি করা এখন ফোনের জন্যও খোলা, কিন্তু খুব সীমিত শর্তে:
+      //  • আইডি অবশ্যই DINGET-XXXX-XXXX-XXXX ফরম্যাটে (অ্যাপ যেভাবে বানায়)
+      //  • শুধু এই ৫টা ফিল্ড — webhookUrl/webhookSecret/telegramChatId/customSenderRules
+      //    ইত্যাদি admin-only ফিল্ড তৈরির সময়ও দেওয়া যাবে না
+      //  • active অবশ্যই true, নাম স্ট্রিং ও ≤ ৬০ অক্ষর, createdAt অবশ্যই সার্ভারের সময়
+      // ⚠️ সীমাবদ্ধতা: যার কাছে এই ডাটাবেজের কনফিগ (google-services.json) আছে সে-ও
+      // ডিভাইস রেকর্ড তৈরি করতে পারবে। ডাটাবেজটা যেহেতু একজন মালিকের নিজের, কনফিগ
+      // গোপন রাখাই সুরক্ষা; অচেনা ডিভাইস দেখলে admin panel-এর Devices পেজ থেকে মুছে দিন।
+      allow create: if isAdmin() || (
+        key.matches('DINGET-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}')
+        && request.resource.data.keys().hasAll(['clientName', 'active'])
+        && request.resource.data.keys().hasOnly(['clientName', 'active', 'isOnline', 'autoRegistered', 'createdAt'])
+        && request.resource.data.active == true
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() <= 60
+        && request.resource.data.createdAt == request.time
+      );
 
       allow update: if isAdmin() || (
         // merchant-এর ফোন (অ্যাপ) নিজে থেকে শুধু নিচের field গুলোই বদলাতে পারবে — বাকি সব
@@ -114,14 +133,6 @@ service cloud.firestore {
     // Email/Password auth ব্যবহার করলে এই কালেকশনটা এমনিতেও অব্যবহৃত)
     match /admin/{doc} {
       allow read, write: if false;
-    }
-
-    // ── app_config/{doc} ───────────────────────────────────────────────
-    // অ্যাপ ভার্সন-চেকের জন্য পাবলিক রিড-ওনলি তথ্য, admin panel থেকে বদলানো যায়
-    match /app_config/{doc} {
-      allow get: if true;
-      allow list: if isAdmin();
-      allow write: if isAdmin();
     }
 
     // বাকি সবকিছু ডিফল্টে বন্ধ
