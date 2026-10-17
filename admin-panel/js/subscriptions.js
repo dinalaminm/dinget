@@ -1,4 +1,3 @@
-
 // SellPoint Admin — সাবস্ক্রিপশন: প্ল্যান তৈরি/এডিট, ট্রায়াল ও সেটিংস, ডিভাইসে প্ল্যান দেওয়া (grant),
 // আয়ের হিসাব। app.js থেকে initSubscriptions() একবার কল হয়।
 //
@@ -127,6 +126,9 @@ function bindSettingsForm() {
     if (contactUrl && !/^https?:\/\//i.test(contactUrl)) {
       toast("Contact link must start with https://", "error");
       return;
+    }
+    if (/wa\.me\/(qr|message)\//i.test(contactUrl)) {
+      if (!confirm("This WhatsApp link can't pre-fill the plan request message, so customers will open an empty chat. Use https://wa.me/<your number> instead for an automatic message.\n\nSave this link anyway?")) return;
     }
     const required = $("setRequired").checked;
     if (required && plansCache.filter((p) => p.active !== false).length === 0) {
