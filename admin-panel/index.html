@@ -261,10 +261,12 @@
                 <div class="field">
                   <label for="setTrialDays">Free trial (days)</label>
                   <input type="number" id="setTrialDays" min="0" max="31" step="1" value="7" />
+                  <div class="field-hint">Applies only to phones checking in for the first time. A phone that already got a trial keeps it — to end it, open Subscriptions, click that phone and choose “End plan now”.</div>
                 </div>
                 <div class="field span-2">
                   <label for="setContactUrl">Where customers contact you to buy</label>
                   <input type="url" id="setContactUrl" placeholder="https://wa.me/8801XXXXXXXXX" />
+                  <div class="field-hint">Use <b>https://wa.me/&lt;your number with country code&gt;</b> (digits only, e.g. https://wa.me/8801712345678) — then the plan request message is filled in automatically. WhatsApp “QR” links (wa.me/qr/…) open an empty chat, so the customer has to paste the message.</div>
                 </div>
               </div>
               <div class="field-hint" id="subRequiredHint" style="margin-bottom:14px;"></div>
