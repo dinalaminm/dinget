@@ -17,6 +17,7 @@ import {
   isPlaceholderConfig,
 } from "./utils.js";
 import { firebaseConfig } from "./firebase-config.js";
+import { initSubscriptions } from "./subscriptions.js";
 
 // ════════════════════════════════════════════════════════════════
 // AUTH
@@ -111,6 +112,7 @@ function startApp() {
   initLicenses();
   initTransactions();
   initSettings();
+  initSubscriptions(unsubscribers); // প্ল্যান তৈরি, ট্রায়াল সেটিংস, ডিভাইসে প্ল্যান দেওয়া
 }
 
 // ════════════════════════════════════════════════════════════════
