@@ -57,6 +57,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
           Transactions
         </button>
+        <button class="nav-item" data-page="subscriptions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.5 6.8 19.2l1-5.9L3.5 9.2l5.9-.8L12 3z"/></svg>
+          Subscriptions
+        </button>
+        <button class="nav-item" data-page="plans">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          Plans
+        </button>
         <button class="nav-item" data-page="settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.4-3.6 4.4-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>
           Settings
@@ -178,6 +186,103 @@
         </div>
       </section>
 
+      <!-- ── Subscriptions ── -->
+      <section class="page" id="page-subscriptions">
+        <div class="page-head">
+          <div>
+            <h2>Subscriptions</h2>
+            <p>Every phone that has checked in, its trial or plan, and your plan sales. When a customer pays you, grant their plan here.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn--primary" id="grantPlanBtn">Grant a plan</button>
+          </div>
+        </div>
+
+        <div class="stat-grid" id="subStats">
+          <div class="skeleton">Loading…</div>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="subSearch" placeholder="Search by Subscription ID…" />
+          <select id="subFilter">
+            <option value="all">All phones</option>
+            <option value="active">Paid &amp; active</option>
+            <option value="trial">On free trial</option>
+            <option value="expired">Expired</option>
+          </select>
+          <div class="spacer"></div>
+          <span id="subCount" style="font-size:12.5px;color:var(--ink-soft);"></span>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table class="data" id="subsTable">
+              <thead><tr><th>Subscription ID</th><th>Plan</th><th>Status</th><th>Valid until</th><th>Left</th></tr></thead>
+              <tbody id="subsTableBody"><tr><td colspan="5" class="table-empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px;">
+          <div class="panel-head"><h3>Recent plan sales</h3></div>
+          <div class="table-wrap">
+            <table class="data" id="paymentsTable">
+              <thead><tr><th>When</th><th>Subscription ID</th><th>Plan</th><th>Amount</th><th>Method</th><th>TrxID</th></tr></thead>
+              <tbody id="paymentsTableBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Plans ── -->
+      <section class="page" id="page-plans">
+        <div class="page-head">
+          <div>
+            <h2>Plans</h2>
+            <p>Create the plans people can buy, and control the free trial. Users see these inside the app.</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn--primary" id="newPlanBtn">New plan</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Subscription settings</h3></div>
+          <div class="panel-body">
+            <form id="subSettingsForm">
+              <div class="form-grid">
+                <div class="field">
+                  <label>Require a subscription</label>
+                  <label class="switch" style="margin-top:4px;">
+                    <input type="checkbox" id="setRequired" />
+                    <span class="track"></span>
+                  </label>
+                </div>
+                <div class="field">
+                  <label for="setTrialDays">Free trial (days)</label>
+                  <input type="number" id="setTrialDays" min="0" max="31" step="1" value="7" />
+                </div>
+                <div class="field span-2">
+                  <label for="setContactUrl">Where customers contact you to buy</label>
+                  <input type="url" id="setContactUrl" placeholder="https://wa.me/8801XXXXXXXXX" />
+                </div>
+              </div>
+              <div class="field-hint" id="subRequiredHint" style="margin-bottom:14px;"></div>
+              <button type="submit" class="btn btn--primary" id="saveSubSettingsBtn">Save settings</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px;">
+          <div class="table-wrap">
+            <table class="data" id="plansTable">
+              <thead><tr><th>Plan</th><th>Price</th><th>Duration</th><th>Status</th><th>Order</th><th>ID</th></tr></thead>
+              <tbody id="plansTableBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- ── Settings ── -->
       <section class="page" id="page-settings">
         <div class="page-head">
@@ -235,6 +340,90 @@
         <div style="flex:1"></div>
         <button class="btn btn--ghost" id="licenseModalCancel">Cancel</button>
         <button class="btn btn--primary" id="licenseModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ Plan editor মোডাল ═══════════════════════ -->
+  <div class="modal-backdrop" id="planModalBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3 id="planModalTitle">New plan</h3>
+          <p id="planModalSub"></p>
+        </div>
+        <button class="modal-close" id="planModalClose" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="planModalBody"></div>
+      <div class="modal-foot">
+        <button class="btn btn--danger" id="deletePlanBtn" style="display:none;">Delete plan</button>
+        <div style="flex:1"></div>
+        <button class="btn btn--ghost" id="planModalCancel">Cancel</button>
+        <button class="btn btn--primary" id="planModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ Grant মোডাল ═══════════════════════ -->
+  <div class="modal-backdrop" id="grantModalBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3 id="grantModalTitle">Grant a plan</h3>
+          <p id="grantModalSub"></p>
+        </div>
+        <button class="modal-close" id="grantModalClose" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="gDevice">Subscription ID</label>
+            <input type="text" id="gDevice" placeholder="ABCD-1234-EF56-7890" autocomplete="off" />
+          </div>
+          <div class="field span-2">
+            <label for="gPlan">Plan</label>
+            <select id="gPlan"></select>
+          </div>
+          <div class="field span-2" id="gCustomRow" style="display:none; grid-template-columns:1fr 1fr; gap:14px;">
+            <div class="field">
+              <label for="gCustomName">Label</label>
+              <input type="text" id="gCustomName" maxlength="40" value="Gift" />
+            </div>
+            <div class="field">
+              <label for="gDays">Days</label>
+              <input type="number" id="gDays" min="1" max="3650" step="1" value="30" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="gAmount">Amount received (৳)</label>
+            <input type="number" id="gAmount" min="0" step="1" />
+          </div>
+          <div class="field">
+            <label for="gMethod">Paid via</label>
+            <select id="gMethod">
+              <option>bKash</option><option>Nagad</option><option>Rocket</option><option>upay</option><option>Cash</option><option>Other</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label for="gTrx">TrxID (optional)</label>
+            <input type="text" id="gTrx" autocomplete="off" />
+          </div>
+          <div class="field span-2">
+            <label for="gNote">Note (optional)</label>
+            <input type="text" id="gNote" maxlength="120" />
+          </div>
+        </div>
+        <div class="field-hint">If the phone still has time left, the new plan is added after it — nothing is lost.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn--danger" id="revokeBtn" style="display:none;">End plan now</button>
+        <div style="flex:1"></div>
+        <button class="btn btn--ghost" id="grantModalCancel">Cancel</button>
+        <button class="btn btn--primary" id="grantModalSave">Grant plan</button>
       </div>
     </div>
   </div>
