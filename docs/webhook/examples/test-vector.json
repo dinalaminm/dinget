@@ -1,0 +1,6 @@
+{
+  "secret": "whsec_test_0123456789abcdef",
+  "timestamp": 1760000000,
+  "body": "{\"deliveryId\":\"d-1\",\"trxID\":\"9A1B2C3D4E\",\"method\":\"bKash\",\"amount\":100,\"sender\":\"bKash\",\"customerNumber\":\"01712345678\",\"clientId\":\"DINGET-XXXX\",\"status\":\"unused\",\"timestamp\":1759999990000,\"note\":\"বাংলা ✓\"}",
+  "signatureHeader": "t=1760000000,v1=dae17a98cfddb34f3c8e89e77e989b430da7aa46a34f5c182e85727ed88d5b71"
+}
