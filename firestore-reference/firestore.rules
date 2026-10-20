@@ -125,6 +125,83 @@ service cloud.firestore {
       );
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // সাবস্ক্রিপশন (ডেভেলপারের নিজের প্রজেক্টে — SellPoint অ্যাপ বিক্রির প্ল্যান)
+    //
+    // ⚠️ এই অংশ শুধু সেই Firebase প্রজেক্টে deploy করুন যেটা আপনি (ডেভেলপার) নিজে চালান।
+    // Android অ্যাপ প্রতিটা ফোনের মেয়াদ এই প্রজেক্ট থেকে পড়ে (SubscriptionConfig.java-তে এই
+    // প্রজেক্টের ID বসানো থাকে)। কোনো merchant-এর নিজের ডাটাবেজে এই কালেকশনগুলো থাকার দরকার নেই,
+    // আর থাকলেও অ্যাপ সেখান থেকে পড়ে না — তাই merchant নিজে নিজেকে প্ল্যান দিতে পারে না।
+    // ════════════════════════════════════════════════════════════════
+
+    // ── subscription_plans/{planId} — ইউজার যে প্ল্যানগুলো কিনতে পারে (পাবলিক তালিকা) ──
+    match /subscription_plans/{planId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── subscription_settings/config — ট্রায়ালের দিন, যোগাযোগ লিংক, সাবস্ক্রিপশন চালু/বন্ধ ──
+    match /subscription_settings/{doc} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ── subscriptions/{deviceId} — প্রতিটা ফোনের ট্রায়াল/প্ল্যানের মেয়াদ ──
+    // আইডি = ফোনের ANDROID_ID (বড় হাতের অক্ষর-সংখ্যা, ড্যাশ ছাড়া) — অনুমান করা কঠিন, তাই
+    // শুধু single get খোলা, list বন্ধ। ফোন নিজে শুধু একবার ট্রায়াল তৈরি করতে পারে, তার বেশি
+    // কিছু না: মেয়াদ বাড়ানো/প্ল্যান দেওয়া/মোছা শুধু admin panel থেকে।
+    match /subscriptions/{deviceId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow update, delete: if isAdmin();
+
+      allow create: if isAdmin() || (
+        deviceId.matches('[A-Z0-9]{8,32}')
+        && request.resource.data.keys().hasOnly(['kind', 'plan', 'expiresAt'])
+        && request.resource.data.keys().hasAll(['kind', 'plan', 'expiresAt'])
+        && request.resource.data.kind == 'trial'
+        && request.resource.data.plan == 'Free trial'
+        && request.resource.data.expiresAt is timestamp
+        // ট্রায়ালের মেয়াদ settings-এর trialDays-এর বেশি হতে পারবে না (১ ঘণ্টা ঘড়ির ফারাকের ছাড়)
+        && request.resource.data.expiresAt <= request.time
+             + duration.value(
+                 exists(/databases/$(database)/documents/subscription_settings/config)
+                   ? get(/databases/$(database)/documents/subscription_settings/config).data.get('trialDays', 7)
+                   : 7,
+                 'd')
+             + duration.value(1, 'h')
+      );
+    }
+
+    // ── subscription_claims/{deviceId} — কাস্টমারের "আমি টাকা পাঠিয়েছি" দাবি (TrxID + নম্বর) ──
+    // অ্যাপ শুধু pending দাবি জমা দিতে পারে; যাচাই করে approve/reject করে GitHub Actions-এর
+    // verify-plan-payments স্ক্রিপ্ট (service account) বা admin panel। কাস্টমার নিজে কখনো
+    // approved/rejected লিখতে পারে না — তাই নিজে নিজেকে প্ল্যান দেওয়া যায় না।
+    match /subscription_claims/{deviceId} {
+      allow get: if true;            // অ্যাপ নিজের দাবির ফলাফল দেখে (আইডি = ANDROID_ID)
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
+      allow create, update: if isAdmin() || (
+        deviceId.matches('[A-Z0-9]{8,32}')
+        && request.resource.data.keys().hasOnly(['device', 'planId', 'trxId', 'phone', 'status'])
+        && request.resource.data.keys().hasAll(['device', 'planId', 'trxId', 'phone', 'status'])
+        && request.resource.data.device == deviceId
+        && request.resource.data.status == 'pending'
+        && request.resource.data.planId is string && request.resource.data.planId.size() <= 80
+        && exists(/databases/$(database)/documents/subscription_plans/$(request.resource.data.planId))
+        && request.resource.data.trxId is string
+        && request.resource.data.trxId.size() >= 6 && request.resource.data.trxId.size() <= 32
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 10 && request.resource.data.phone.size() <= 16
+      );
+    }
+
+    // ── subscription_payments/{id} — কে কবে কোন প্ল্যান কিনেছে (আয়ের হিসাব) — শুধু admin ──
+    match /subscription_payments/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // ── admin/{doc} ────────────────────────────────────────────────────
     // পাসওয়ার্ড হ্যাশ কখনোই client rules দিয়ে পড়া/লেখা যায় না, এমনকি isAdmin() হলেও না —
     // পাসওয়ার্ড হ্যাশিং/verification/রেট-লিমিট শুধু Cloud Function-এর ভেতরেই হয়
