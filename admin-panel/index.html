@@ -202,6 +202,19 @@
           <div class="skeleton">Loading…</div>
         </div>
 
+        <div class="panel" style="margin-bottom:18px;">
+          <div class="panel-head">
+            <h3>Payment claims</h3>
+            <span id="claimsCount" style="font-size:12.5px;color:var(--ink-soft);"></span>
+          </div>
+          <div class="table-wrap">
+            <table class="data" id="claimsTable">
+              <thead><tr><th>Subscription ID</th><th>Plan</th><th>TrxID</th><th>Customer number</th><th>Status</th><th></th></tr></thead>
+              <tbody id="claimsTableBody"><tr><td colspan="6" class="table-empty">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="toolbar">
           <input type="search" id="subSearch" placeholder="Search by Subscription ID…" />
           <select id="subFilter">
@@ -262,6 +275,11 @@
                   <label for="setTrialDays">Free trial (days)</label>
                   <input type="number" id="setTrialDays" min="0" max="31" step="1" value="7" />
                   <div class="field-hint">Applies only to phones checking in for the first time. A phone that already got a trial keeps it — to end it, open Subscriptions, click that phone and choose “End plan now”.</div>
+                </div>
+                <div class="field span-2">
+                  <label for="setPayNote">How customers pay you (shown in the app)</label>
+                  <input type="text" id="setPayNote" maxlength="300" placeholder="e.g. Send Money to bKash 01XXXXXXXXX, then enter the TrxID in the app" />
+                  <div class="field-hint">Payments are verified automatically from the SMS your own SellPoint phone receives — so this must be a number that phone is receiving on.</div>
                 </div>
                 <div class="field span-2">
                   <label for="setContactUrl">Where customers contact you to buy</label>
