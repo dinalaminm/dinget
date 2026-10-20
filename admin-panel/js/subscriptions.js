@@ -5,7 +5,9 @@
 //   subscription_plans/{id}          name, price(৳), days, active, sortOrder, description
 //   subscription_settings/config     required, trialDays, contactUrl
 //   subscriptions/{deviceId}         kind(trial|active), plan, expiresAt, lastGrantAt
-//   subscription_payments/{autoId}   device, planId, plan, days, amount, method, trxId, note, grantedAt
+//   subscription_payments/{autoId}   device, planId, plan, days, amount, method, trxId, note, auto, grantedAt
+//   subscription_claims/{deviceId}   device, planId, trxId, phone, status(pending|approved|rejected), reason
+//                                    — কাস্টমারের "টাকা পাঠিয়েছি" দাবি; scripts/verify-plan-payments.js যাচাই করে
 
 import {
   db,
@@ -62,7 +64,8 @@ export function computeNewExpiry(currentExpiryMs, days, now = Date.now()) {
 let plansCache = [];
 let subsCache = [];
 let paymentsCache = [];
-let settingsCache = { required: false, trialDays: 7, contactUrl: "" };
+let claimsCache = [];
+let settingsCache = { required: false, trialDays: 7, contactUrl: "", payNote: "" };
 
 let editingPlanId = null;
 let grantTargetId = null;
@@ -71,6 +74,7 @@ export function initSubscriptions(unsubscribers) {
   bindPlanUi();
   bindGrantUi();
   bindSettingsForm();
+  bindClaimActions();
 
   unsubscribers.push(onSnapshot(collection(db, "subscription_plans"), (snap) => {
     plansCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -87,6 +91,7 @@ export function initSubscriptions(unsubscribers) {
         required: d.required === true,
         trialDays: Number.isFinite(d.trialDays) ? d.trialDays : 7,
         contactUrl: d.contactUrl || "",
+        payNote: d.payNote || "",
       };
     }
     renderSettings();
@@ -98,6 +103,11 @@ export function initSubscriptions(unsubscribers) {
   }, (err) => {
     $("subsTableBody").innerHTML = `<tr><td colspan="5" class="table-empty">Couldn't load subscriptions: ${escapeHtml(err.message)}</td></tr>`;
   }));
+
+  unsubscribers.push(onSnapshot(collection(db, "subscription_claims"), (snap) => {
+    claimsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderClaims();
+  }, () => {}));
 
   unsubscribers.push(onSnapshot(
     query(collection(db, "subscription_payments"), orderBy("grantedAt", "desc"), limit(200)),
@@ -130,6 +140,11 @@ function bindSettingsForm() {
     if (/wa\.me\/(qr|message)\//i.test(contactUrl)) {
       if (!confirm("This WhatsApp link can't pre-fill the plan request message, so customers will open an empty chat. Use https://wa.me/<your number> instead for an automatic message.\n\nSave this link anyway?")) return;
     }
+    const payNote = $("setPayNote").value.trim();
+    if (payNote.length > 300) {
+      toast("Payment instructions must be 300 characters or less", "error");
+      return;
+    }
     const required = $("setRequired").checked;
     if (required && plansCache.filter((p) => p.active !== false).length === 0) {
       if (!confirm("You have no active plans yet. Users whose trial ends won't be able to buy anything. Turn subscriptions on anyway?")) return;
@@ -139,7 +154,7 @@ function bindSettingsForm() {
     btn.disabled = true;
     btn.textContent = "Saving…";
     try {
-      await setDoc(doc(db, "subscription_settings", "config"), { required, trialDays, contactUrl });
+      await setDoc(doc(db, "subscription_settings", "config"), { required, trialDays, contactUrl, payNote });
       toast("Subscription settings saved", "success");
     } catch (err) {
       toast("Couldn't save: " + err.message, "error");
@@ -154,6 +169,7 @@ function renderSettings() {
   $("setRequired").checked = settingsCache.required;
   $("setTrialDays").value = settingsCache.trialDays;
   $("setContactUrl").value = settingsCache.contactUrl;
+  $("setPayNote").value = settingsCache.payNote;
   $("subRequiredHint").textContent = settingsCache.required
     ? "ON — users need a trial or a plan. When it ends, new payments are saved on the phone but not uploaded."
     : "OFF — everyone uses the app for free. Turn this on only after you've created your plans.";
@@ -495,4 +511,105 @@ async function revokeSubscription() {
   } catch (err) {
     toast("Couldn't revoke: " + err.message, "error");
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// PAYMENT CLAIMS — কাস্টমারের দেওয়া TrxID (অটো যাচাই ব্যর্থ/অপেক্ষায় থাকলে এখান থেকে হাতে সিদ্ধান্ত)
+// ════════════════════════════════════════════════════════════════
+
+const REASON_TEXT = {
+  not_found: "No matching SMS received",
+  amount_low: "Amount too low",
+  phone_mismatch: "Number doesn't match the payment",
+  already_used: "TrxID already used",
+  too_old: "Payment is too old",
+  plan_missing: "Plan not available",
+  admin: "Rejected by admin",
+};
+
+function renderClaims() {
+  const body = $("claimsTableBody");
+  if (!body) return;
+
+  const pending = claimsCache.filter((c) => c.status === "pending").length;
+  $("claimsCount").textContent = pending ? `${pending} waiting` : "";
+
+  const rows = [...claimsCache].sort((a, b) => {
+    const rank = (c) => (c.status === "pending" ? 0 : c.status === "rejected" ? 1 : 2);
+    return rank(a) - rank(b);
+  });
+
+  if (rows.length === 0) {
+    body.innerHTML = `<tr><td colspan="6" class="table-empty">No payment claims yet. When a customer enters a TrxID in the app, it shows up here and is verified automatically.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = rows.map((c) => {
+    const plan = plansCache.find((p) => p.id === c.planId);
+    const badge = c.status === "approved" ? `<span class="badge badge--ok">Verified</span>`
+      : c.status === "rejected" ? `<span class="badge badge--error">Rejected</span>`
+      : `<span class="badge badge--warn">Checking</span>`;
+    const why = c.status === "rejected" && c.reason
+      ? `<div style="font-size:11.5px;color:var(--ink-soft);">${escapeHtml(REASON_TEXT[c.reason] || c.reason)}</div>` : "";
+    const actions = c.status === "approved"
+      ? `<button class="btn btn--ghost btn--sm" data-act="dismiss" data-id="${escapeHtml(c.id)}">Dismiss</button>`
+      : `<button class="btn btn--primary btn--sm" data-act="approve" data-id="${escapeHtml(c.id)}">Approve</button>
+         <button class="btn btn--ghost btn--sm" data-act="${c.status === "rejected" ? "dismiss" : "reject"}" data-id="${escapeHtml(c.id)}">${c.status === "rejected" ? "Dismiss" : "Reject"}</button>`;
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(prettyDeviceId(c.id))}</td>
+        <td>${escapeHtml(plan ? plan.name : c.planId || "—")}${plan ? ` <span style="color:var(--ink-soft);">· ${fmtTaka(plan.price)}</span>` : ""}</td>
+        <td class="mono">${escapeHtml(c.trxId || "—")}</td>
+        <td class="mono">${escapeHtml(c.phone || "—")}</td>
+        <td>${badge}${why}</td>
+        <td style="white-space:nowrap;">${actions}</td>
+      </tr>`;
+  }).join("");
+}
+
+export function bindClaimActions() {
+  const body = $("claimsTableBody");
+  body.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const claim = claimsCache.find((c) => c.id === id);
+    if (!claim) return;
+    btn.disabled = true;
+    try {
+      if (btn.dataset.act === "approve") await approveClaim(claim);
+      else if (btn.dataset.act === "reject") {
+        await updateDoc(doc(db, "subscription_claims", id), { status: "rejected", reason: "admin" });
+        toast("Claim rejected", "success");
+      } else if (btn.dataset.act === "dismiss") {
+        await deleteDoc(doc(db, "subscription_claims", id));
+      }
+    } catch (err) {
+      toast("Couldn't update claim: " + err.message, "error");
+      btn.disabled = false;
+    }
+  });
+}
+
+/** হাতে approve — অটো যাচাই মেলেনি, কিন্তু আপনি নিজে পেমেন্ট দেখে নিশ্চিত */
+async function approveClaim(claim) {
+  const plan = plansCache.find((p) => p.id === claim.planId);
+  if (!plan) { toast("That plan no longer exists", "error"); return; }
+  const trx = String(claim.trxId || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (trx && paymentsCache.some((p) => (p.trxId || "").toUpperCase() === trx)) {
+    if (!confirm(`TrxID ${trx} was already used for another plan sale. Approve anyway?`)) return;
+  }
+  const ref = doc(db, "subscriptions", claim.id);
+  const snap = await getDoc(ref);
+  const current = snap.exists() ? toMillis(snap.data().expiresAt) : 0;
+  const expiresAt = new Date(computeNewExpiry(current, Number(plan.days)));
+
+  await setDoc(ref, { kind: "active", plan: plan.name, expiresAt, lastGrantAt: serverTimestamp() });
+  await addDoc(collection(db, "subscription_payments"), {
+    device: claim.id, planId: plan.id, plan: plan.name, days: Number(plan.days),
+    amount: Number(plan.price) || 0, method: "", trxId: trx, note: "approved by admin", auto: false,
+    grantedAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, "subscription_claims", claim.id), { status: "approved" });
+  toast(`${plan.name} activated — valid until ${fmtDate(expiresAt.getTime())}`, "success");
 }
