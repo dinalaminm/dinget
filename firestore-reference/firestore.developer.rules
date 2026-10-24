@@ -1,0 +1,268 @@
+rules_version = '2';
+
+// ════════════════════════════════════════════════════════════════════════
+// DinGet — Firestore Rules (DEVELOPER-এর নিজের প্রজেক্টের জন্য)
+//
+// এই ফাইলটা শুধু সেই Firebase প্রজেক্টে deploy করো যেটা তুমি (ডেভেলপার) নিজে চালাও — যেখানে
+// admin panel আছে আর অ্যাপ প্ল্যানের তথ্য পড়ে (SubscriptionConfig.FIREBASE_PROJECT_ID)।
+// Merchant/ইউজারদের নিজের প্রজেক্টের জন্য আলাদা ফাইল: firestore.rules
+//
+// ── নিরাপত্তার মূল সমস্যা ও সমাধান ─────────────────────────────────────
+// অ্যাপ Firebase Auth ব্যবহার করে না, তাই "এই transaction সত্যিই তোমার ফোনের SMS থেকে এসেছে"
+// Firestore জানে না — যে কেউ (APK থেকে নেওয়া প্রজেক্ট ID + API key দিয়ে) ফেক transaction লিখে
+// instant plan-purchase ফাঁকি দিতে পারে। তাই দুটো মোড:
+//
+//   • LEGACY (ডিফল্ট; security/config ডকুমেন্ট নেই বা instantPurchase != true):
+//       – instant purchase সম্পূর্ণ বন্ধ (subscription_receipts লেখা যায় না, subscriptions-এ
+//         শুধু ট্রায়াল তৈরি) — প্ল্যান দেওয়া হয় admin panel/স্ক্রিপ্ট থেকে, আগের মতো।
+//       – transactions আগের মতো অথ ছাড়া লেখা যায়, যাতে বর্তমান অ্যাপ ভাঙে না।
+//   • SECURE (security/config → instantPurchase: true):
+//       – transactions লিখতে পারবে শুধু Firebase Auth-এ সাইন-ইন করা তোমার রিসিভার ফোন
+//         (isDevPhone()) বা admin; list-ও বন্ধ হয় বাকিদের জন্য।
+//       – instant purchase চালু: নিচের receipt + subscription নিয়মে সার্ভার-সাইডে যাচাই হয়।
+//
+// ⚠️ SECURE মোড চালুর আগের শর্ত (নইলে তোমার নিজের ফোনের পেমেন্টও আপলোড হবে না):
+//   ১) অ্যাপে Firebase Auth সাইন-ইন যোগ করা (রিসিভার ফোন DEV_PHONE ইমেইল দিয়ে লগইন করবে)
+//   ২) Firebase Console → Authentication-এ সেই ইউজার তৈরি, এবং নিচের isDevPhone() তালিকায় ইমেইল বসানো
+//   ৩) Authentication-এ নতুন সাইন-আপ বন্ধ করা (যেখানে বিকল্প আছে)
+//   ৪) Console-এ security/config ডকুমেন্টে instantPurchase = true সেট করা
+//   এই ফ্ল্যাগ ইচ্ছে করেই settings পেজের ডকুমেন্টে নেই — admin panel-এর "Save settings"
+//   (setDoc, merge ছাড়া) সেটা মুছে দিয়ে চুপচাপ মোড বদলে ফেলত।
+// ════════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── পরিচয় ────────────────────────────────────────────────────────
+    // ⚠️ নিজের ইমেইল বসাও। প্লেসহোল্ডার ইচ্ছে করে অবৈধ ইমেইল — না বদলালে কেউই admin হবে না
+    // (অ্যাক্সেস বন্ধ থাকবে, খোলা থাকবে না)। ইমেইলগুলো আগে Firebase Auth-এ নিজে তৈরি করো,
+    // যাতে অন্য কেউ ওই ইমেইলে সাইন-আপ করতে না পারে।
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        'REPLACE_WITH_YOUR_ADMIN_EMAIL'
+      ];
+    }
+
+    // তোমার পেমেন্ট-রিসিভার ফোন (SMS ধরে transactions লেখে) — অ্যাপে Auth যোগ করার পর
+    function isDevPhone() {
+      return request.auth != null && request.auth.token.email in [
+        'REPLACE_WITH_DEV_PHONE_EMAIL'
+      ];
+    }
+
+    // SECURE মোড চালু কিনা — security/config ক্লায়েন্ট থেকে পড়া যায় না, কিন্তু rules নিজে get() করতে পারে
+    function secureMode() {
+      return exists(/databases/$(database)/documents/security/config)
+        && get(/databases/$(database)/documents/security/config).data.get('instantPurchase', false) == true;
+    }
+
+    function latestOf(a, b) {
+      return a > b ? a : b;
+    }
+
+    match /security/{doc} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── transactions/{trxId} ──────────────────────────────────────────
+    match /transactions/{trxId} {
+
+      // অ্যাপ প্ল্যান কেনার সময় TrxID ধরে একটা ডকুমেন্ট পড়ে (ভুলের কারণ দেখাতে) — single get লাগে।
+      allow get: if true;
+
+      // list: LEGACY-তে খোলা (বর্তমান অ্যাপের dashboard query চলার জন্য); SECURE-এ শুধু তুমি
+      allow list: if isAdmin() || isDevPhone() || !secureMode();
+
+      allow update, delete: if isAdmin();
+
+      allow create: if isAdmin() || (
+        (isDevPhone() || !secureMode())
+        && request.resource.data.trxID == trxId
+        && request.resource.data.trxID is string && request.resource.data.trxID.size() > 0
+        && request.resource.data.method is string
+        && request.resource.data.amount is number && request.resource.data.amount > 0
+        && request.resource.data.clientId is string && request.resource.data.clientId.size() > 0
+        && exists(/databases/$(database)/documents/licenses/$(request.resource.data.clientId))
+      );
+    }
+
+    // ── licenses/{key} ─────────────────────────────────────────────────
+    match /licenses/{key} {
+
+      allow get: if true;
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
+
+      allow create: if isAdmin() || (
+        (isDevPhone() || !secureMode())
+        && key.matches('DINGET-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}')
+        && request.resource.data.keys().hasAll(['clientName', 'active'])
+        && request.resource.data.keys().hasOnly(['clientName', 'active', 'isOnline', 'autoRegistered', 'createdAt'])
+        && request.resource.data.active == true
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() <= 60
+        && request.resource.data.createdAt == request.time
+      );
+
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              'isOnline', 'lastSeen',
+              'activatedAt', 'boundDeviceId', 'boundDeviceModel', 'boundAt',
+              'fcmToken', 'lastDeactivationReason'
+            ])
+        && (
+          !('boundDeviceId' in request.resource.data.diff(resource.data).affectedKeys())
+          || !('boundDeviceId' in resource.data)
+          || resource.data.boundDeviceId == null
+          || resource.data.boundDeviceId == ''
+        )
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // সাবস্ক্রিপশন
+    // ════════════════════════════════════════════════════════════════
+
+    match /subscription_plans/{planId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+    }
+
+    match /subscription_settings/{doc} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ── subscriptions/{deviceId} — প্রতিটা ফোনের মেয়াদ ──
+    match /subscriptions/{deviceId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
+
+      // ফোন (ক) একবার ট্রায়াল তৈরি করতে পারে, অথবা (খ) SECURE মোডে instant purchase-এর অংশ হিসেবে
+      // (এই ডকুমেন্ট তখনই তৈরি হয় যখন ট্রায়াল বন্ধ ছিল এবং আগে ডকুমেন্ট ছিল না)
+      allow create: if isAdmin() || trialOk(deviceId) || purchaseOk(deviceId, request.time);
+
+      // মেয়াদ বাড়ানো: শুধু admin, অথবা SECURE মোডে যাচাই-করা instant purchase
+      allow update: if isAdmin()
+        || purchaseOk(deviceId, latestOf(request.time, resource.data.get('expiresAt', request.time)));
+
+      function trialOk(dev) {
+        return dev.matches('[A-Z0-9]{8,32}')
+          && request.resource.data.keys().hasOnly(['kind', 'plan', 'expiresAt'])
+          && request.resource.data.keys().hasAll(['kind', 'plan', 'expiresAt'])
+          && request.resource.data.kind == 'trial'
+          && request.resource.data.plan == 'Free trial'
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt <= request.time
+               + duration.value(
+                   exists(/databases/$(database)/documents/subscription_settings/config)
+                     ? get(/databases/$(database)/documents/subscription_settings/config).data.get('trialDays', 7)
+                     : 7,
+                   'd')
+               + duration.value(1, 'h');
+      }
+
+      // একই commit-এ লেখা receipt-এর সাথে মিলিয়ে (getAfter) — receipt ছাড়া শুধু subscriptions বদলানো যায় না।
+      // নতুন মেয়াদ = (চালু মেয়াদ থাকলে তার শেষ, নইলে এখন) + প্ল্যানের দিন, ±৫ মিনিট ঘড়ির ফারাকের ছাড়।
+      function purchaseOk(dev, baseExp) {
+        let d = request.resource.data;
+        let rcptPath = /databases/$(database)/documents/subscription_receipts/$(d.lastTrx);
+        let rcpt = getAfter(rcptPath).data;
+        let plan = get(/databases/$(database)/documents/subscription_plans/$(rcpt.planId)).data;
+        return secureMode()
+          && dev.matches('[A-Z0-9]{8,32}')
+          && d.keys().hasOnly(['kind', 'plan', 'expiresAt', 'lastTrx'])
+          && d.keys().hasAll(['kind', 'plan', 'expiresAt', 'lastTrx'])
+          && d.kind == 'active'
+          && d.lastTrx is string && d.lastTrx.matches('[A-Z0-9]{6,32}')
+          && existsAfter(rcptPath)
+          && rcpt.device == dev
+          && plan.get('active', true) == true
+          && plan.days is int && plan.days > 0 && plan.days <= 3660
+          && d.plan == plan.get('name', rcpt.planId)
+          && d.expiresAt is timestamp
+          && d.expiresAt >= baseExp + duration.value(plan.days, 'd') - duration.value(5, 'm')
+          && d.expiresAt <= baseExp + duration.value(plan.days, 'd') + duration.value(5, 'm');
+      }
+    }
+
+    // ── subscription_receipts/{trxId} — একটা TrxID একবারই ব্যবহার করা যায় ──
+    // ডকুমেন্ট আইডি = TrxID; শুধু create (update/delete ক্লায়েন্টের জন্য বন্ধ) + অ্যাপের commit-এ
+    // exists:false শর্ত — তাই দ্বিতীয়বার একই TrxID দিয়ে কেনা যায় না।
+    match /subscription_receipts/{trxId} {
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+
+      allow create: if isAdmin() || receiptOk(trxId);
+
+      function receiptOk(trx) {
+        let d = request.resource.data;
+        let tx = get(/databases/$(database)/documents/transactions/$(trx)).data;
+        let plan = get(/databases/$(database)/documents/subscription_plans/$(d.planId)).data;
+        return secureMode()
+          && trx.matches('[A-Z0-9]{6,32}')
+          && d.keys().hasOnly(['device', 'planId', 'phone10', 'amount', 'method', 'claimedAt'])
+          && d.keys().hasAll(['device', 'planId', 'phone10', 'amount', 'method', 'claimedAt'])
+          && d.claimedAt == request.time
+          && d.device is string && d.device.matches('[A-Z0-9]{8,32}')
+          && d.phone10 is string && d.phone10.matches('[0-9]{10}')
+          && d.planId is string && d.planId.size() <= 80
+          && plan.get('active', true) == true
+          && plan.price is number
+          // পেমেন্টটা সত্যিই এসেছে: অ্যামাউন্ট ≥ প্ল্যানের দাম, প্রেরকের নম্বর মেলে, তাজা (১৫ মিনিটের মধ্যে)
+          && tx.amount is number && d.amount == tx.amount && tx.amount >= plan.price
+          && d.method == tx.get('method', '')
+          && tx.customerNumber is string && tx.customerNumber.matches('.*' + d.phone10)
+          && tx.timestamp is timestamp
+          && request.time - tx.timestamp <= duration.value(15, 'm')
+          && tx.timestamp <= request.time + duration.value(1, 'm')
+          // একই commit-এ এই ডিভাইসের subscriptions ডকুমেন্টও এই TrxID দিয়ে বদলাচ্ছে
+          && existsAfter(/databases/$(database)/documents/subscriptions/$(d.device))
+          && getAfter(/databases/$(database)/documents/subscriptions/$(d.device)).data.lastTrx == trx;
+      }
+    }
+
+    // ── subscription_claims/{deviceId} — পুরনো "claim + স্ক্রিপ্ট" ফ্লো (বর্তমান অ্যাপ আর ব্যবহার করে না) ──
+    match /subscription_claims/{deviceId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
+
+      allow create: if isAdmin() || claimShapeOk(deviceId);
+      // approved হয়ে যাওয়া দাবি বদলানো যায় না; শুধু pending/rejected আবার জমা দেওয়া যায়
+      allow update: if isAdmin() || (
+        resource.data.status in ['pending', 'rejected']
+        && claimShapeOk(deviceId)
+      );
+
+      function claimShapeOk(dev) {
+        return dev.matches('[A-Z0-9]{8,32}')
+          && request.resource.data.keys().hasOnly(['device', 'planId', 'trxId', 'phone', 'status'])
+          && request.resource.data.keys().hasAll(['device', 'planId', 'trxId', 'phone', 'status'])
+          && request.resource.data.device == dev
+          && request.resource.data.status == 'pending'
+          && request.resource.data.planId is string && request.resource.data.planId.size() <= 80
+          && exists(/databases/$(database)/documents/subscription_plans/$(request.resource.data.planId))
+          && request.resource.data.trxId is string
+          && request.resource.data.trxId.size() >= 6 && request.resource.data.trxId.size() <= 32
+          && request.resource.data.phone is string
+          && request.resource.data.phone.size() >= 10 && request.resource.data.phone.size() <= 16;
+      }
+    }
+
+    match /subscription_payments/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /admin/{doc} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
